@@ -1,0 +1,2 @@
+-- CreateEnum
+CREATE TYPE "RaceStatus" AS ENUM ('WAITING', 'STARTED', 'FINISHED');

@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "User" ADD COLUMN     "frozen_balance" DOUBLE PRECISION NOT NULL DEFAULT 0.0;

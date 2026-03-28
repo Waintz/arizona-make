@@ -1,0 +1,25 @@
+{
+  "name": "arizona-make",
+  "version": "1.0.0",
+  "main": "bot.ts",
+  "scripts": {
+    "dev": "nodemon bot.ts",
+    "build": "tsc",
+    "start": "node dist/bot.js"
+  },
+  "dependencies": {
+    "@grammyjs/conversations": "^2.1.1",
+    "axios": "^1.13.2",
+    "canvas": "^3.2.0",
+    "dotenv": "^17.2.3",
+    "grammy": "^1.38.4",
+    "otp-generator": "^4.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.3",
+    "@types/otp-generator": "^4.0.2",
+    "nodemon": "^3.1.11",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  }
+}

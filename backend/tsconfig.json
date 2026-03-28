@@ -1,0 +1,27 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "Node16",
+    "moduleResolution": "Node16",
+    "outDir": "./dist",
+    "rootDir": "./",
+    "strict": true,
+    "strictNullChecks": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "sourceMap": true,
+    "typeRoots": ["./node_modules/@types", "./src/types"],
+  },
+  "files": ["src/types/express.d.ts"],
+  "include": [
+    "server.ts",
+    "src/**/*",
+    "database/**/*",
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
+}

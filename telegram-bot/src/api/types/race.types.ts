@@ -1,0 +1,1 @@
+export type RaceStatus = "WAITING" | "STARTED" | "FINISHED" | "CANCELLED"
