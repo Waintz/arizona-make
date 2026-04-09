@@ -12,9 +12,9 @@
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "sourceMap": true,
-    "typeRoots": ["./node_modules/@types", "./src/types"],
+    "typeRoots": ["./node_modules/@types", "src/v1/types"],
   },
-  "files": ["src/types/express.d.ts"],
+  "files": ["src/v1/types/express.d.ts"],
   "include": [
     "server.ts",
     "src/**/*",

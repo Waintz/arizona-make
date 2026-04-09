@@ -1,6 +1,11 @@
 generator client {
   provider = "prisma-client-js"
-  output   = "../src/generated/client"
+  output   = "../src/v2/generated"
+}
+
+generator zod {
+  provider = "prisma-zod-generator"
+  output   = "../src/v2/generated/zod"
 }
 
 datasource db {
@@ -10,11 +15,6 @@ datasource db {
 
 // --- ENUMS ---
 
-enum PromoType {
-  VIP_DAYS
-  BALANCE
-}
-
 enum RaceStatus {
   WAITING
   STARTED
@@ -22,16 +22,39 @@ enum RaceStatus {
   CANCELLED
 }
 
-enum PaymentStatus {
-  PENDING
-  SUCCESS
-  FAILED
+enum CarStatus {
+  FOR_SALE
+  TRADING
+  SOLD
+  EXPIRED
 }
 
-enum WithdrawalStatus {
-  PENDING // Заявка создана, средства заморожены, ждет модератора
-  APPROVED // Модератор одобрил, транзакция отправлена в сеть
-  REJECTED // Модератор отклонил, средства вернулись на баланс
+enum CarRarity {
+  LEGENDARY
+  RARE
+  JUNK
+}
+
+enum OilStatus {
+  GOOD
+  MEDIUM
+  BAD
+}
+
+enum DealStatus {
+  PENDING
+  BUYER_CONTACTED
+  WAITING_FOR_FINISH
+  COMPLETED
+  CANCELLED
+  CLOSED_WITH_PENALTY
+}
+
+enum ReportStatus {
+  OPEN
+  UNDER_REVIEW
+  RESOLVED
+  REJECTED
 }
 
 enum VerificationCodeType {
@@ -40,43 +63,73 @@ enum VerificationCodeType {
   GAME_LOGIN
 }
 
+enum AuctionStatus {
+  CREATED
+  OPEN
+  FINISHED
+  CANCELLED
+}
+
+enum SlotType {
+  OPEN
+  CLOSED
+  LUCKY
+}
+
+enum RaceType {
+  FREE // Бесплатная (код в канал)
+  PAID // Платная (код в ЛС победителям аукциона)
+}
+
+enum DisqualificationReason {
+  NOT_IN_START_ZONE
+  CHEATING_SUSPECT
+  TELEPORT
+  SPEEDHACK
+}
+
 // --- MODELS ---
 
 model User {
-  id          Int      @id @default(autoincrement())
-  telegram_id BigInt   @unique
-  username    String?
-  created_at  DateTime @default(now())
-
+  id             Int       @id @default(autoincrement())
+  telegram_id    BigInt    @unique
+  username       String?
+  created_at     DateTime  @default(now())
   vip_expires_at DateTime?
 
-  balance        Float @default(0.0)
-  frozen_balance Float @default(0.0)
+  points        BigInt @default(0)
+  frozen_points BigInt @default(0)
 
-  withdrawals WithdrawalRequest[]
+  balance        BigInt @default(0)
+  frozen_balance BigInt @default(0)
 
-  // Авторизация
-  connect_code            String?   @unique
-  connect_code_expires_at DateTime?
+  reputation Int @default(100)
 
-  activated_promos PromoCode[]
+  banned_until  DateTime?
+  ban_reason    String?
+  token_version Int       @default(0)
 
-  // Связь: один юзер -> много игровых аккаунтов
-  game_accounts GameAccount[]
-
-  // Исторически созданные гонки
-  created_races Race[]
-
-  settings     UserSettings?
-  transactions Transactions[]
-
-  tokens             Tokens[]
+  // Связи
   verification_codes VerificationCodes[]
+  game_accounts      GameAccount[]
+  created_races      Race[]              @relation("UserCreatedRaces")
+  won_races          Race[]              @relation("RaceWinner") // Связь через GameAccount обычно, но если напрямую — ок
+  settings           UserSettings?
+  tokens             Tokens[]
+
+  car_listings    CarListing[]
+  buyer_deals     CarDeal[]    @relation("BuyerDeals")
+  reports_filed   Report[]     @relation("Reporter")
+  reports_against Report[]     @relation("Target")
+
+  won_slots    AuctionSlot[]
+  auction_bids AuctionBid[]
+
+  race_bets RaceBet[]
 }
 
 model VerificationCodes {
-  id Int @id @default(autoincrement())
-
+  id         Int                  @id @default(autoincrement())
   user_id    Int
   user       User                 @relation(fields: [user_id], references: [id], onDelete: Cascade)
   code       String
@@ -87,40 +140,11 @@ model VerificationCodes {
 }
 
 model UserSettings {
-  id Int @id @default(autoincrement())
-
+  id      Int  @id @default(autoincrement())
   user_id Int  @unique
   user    User @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
-  // --- 🎨 ИНТЕРФЕЙС ---
-  language String @default("ru")
-  currency String @default("RUB")
-  timezone Int    @default(0)
-
-  // --- 🔔 УВЕДОМЛЕНИЯ ---
-  notify_news     Boolean @default(true)
-  notify_payments Boolean @default(true)
-
-  // --- 🔐 БЕЗОПАСНОСТЬ ---
-  is_stealth Boolean @default(false)
-
   updated_at DateTime @updatedAt
-}
-
-model PromoCode {
-  id   Int    @id @default(autoincrement())
-  code String @unique
-
-  type  PromoType
-  value Int
-
-  is_used Boolean   @default(false)
-  used_at DateTime?
-
-  user_id Int?
-  user    User? @relation(fields: [user_id], references: [id])
-
-  created_at DateTime @default(now())
 }
 
 model GameAccount {
@@ -128,182 +152,229 @@ model GameAccount {
   nickname String
   server   Int
   verified Boolean @default(true)
-  wins     Int     @default(0)
 
   user_id Int
   user    User @relation(fields: [user_id], references: [id])
 
-  // Связи для гонок
-  races_won      Race[]            @relation("RaceWinner")
-  participations RaceParticipant[] // Участие в гонках
-
-  // Связи для системы свидетелей (АНТИЧИТ)
-  sightings_observed RaceWitness[] @relation("ObserverRelation") // Кого я видел
-  sightings_suspect  RaceWitness[] @relation("SuspectRelation") // Кто меня видел
+  received_bets  RaceBet[]
+  participations RaceParticipant[]
+  car_listings   CarListing[]
+  won_race_refs  Race[]            @relation("GameAccountWinner")
 
   @@unique([nickname, server])
 }
 
 model Location {
-  id      Int    @id @default(autoincrement())
-  name    String
-  file_id String // ID картинки в телеграм
-
+  id        Int    @id @default(autoincrement())
+  name      String
+  file_id   String
   pos_one_x Float
   pos_one_y Float
   pos_one_z Float
-
   pos_two_x Float
   pos_two_y Float
   pos_two_z Float
-
-  races Race[]
+  races     Race[]
 }
 
 model Race {
-  id Int @id @default(autoincrement())
-
-  secret_code String     @unique // Код для входа
-  is_vip      Boolean    @default(false)
+  id          Int        @id @default(autoincrement())
+  secret_code String     @unique
   status      RaceStatus @default(WAITING)
 
   location_id Int
   location    Location @relation(fields: [location_id], references: [id])
 
-  // Победитель (быстрый доступ)
-  winner_id   Int?
-  winner      GameAccount? @relation("RaceWinner", fields: [winner_id], references: [id], onDelete: SetNull)
-  winner_path Json? // Полный путь победителя для разбора полетов
+  // Кто победил (связь с GameAccount)
+  winner_id  Int?
+  winner_acc GameAccount? @relation("GameAccountWinner", fields: [winner_id], references: [id], onDelete: SetNull)
 
-  prize    String
-  start_at DateTime // Запланированное время старта
+  // Кто победил (связь с User для истории)
+  winner_user_id Int?
+  winner_user    User? @relation("RaceWinner", fields: [winner_user_id], references: [id])
 
-  // --- 🔥 ВАЖНО ДЛЯ АНТИЧИТА ---
-  server_start_time DateTime? // Реальное время старта на сервере (для таймингов)
+  winner_path Json?
+  prize       String
+  start_at    DateTime
 
-  // Связи
   creator_id Int?
-  creator    User? @relation(fields: [creator_id], references: [id])
+  creator    User? @relation("UserCreatedRaces", fields: [creator_id], references: [id])
 
-  participants RaceParticipant[] // Все участники и их статус
-  witnesses    RaceWitness[] // Логи "кто кого видел"
+  race_bets RaceBet[]
 
-  created_at DateTime @default(now())
+  participants RaceParticipant[]
+  auction      Auction?
+  created_at   DateTime          @default(now())
 }
 
-// 🛡️ ТАБЛИЦА УЧАСТНИКОВ (Детальная статистика)
 model RaceParticipant {
-  id Int @id @default(autoincrement())
-
+  id      Int  @id @default(autoincrement())
   race_id Int
   race    Race @relation(fields: [race_id], references: [id], onDelete: Cascade)
+
+  is_disqualified Boolean                 @default(false)
+  disqualified_at DateTime?
+  dq_reason       DisqualificationReason?
 
   game_account_id Int
   game_account    GameAccount @relation(fields: [game_account_id], references: [id], onDelete: Cascade)
 
-  // Статус финиша
-  finished         Boolean   @default(false)
-  server_finish_at DateTime? // Время финиша по серверу
-  client_time_ms   Int? // Время, которое заявил клиент (для сверки)
+  finished         Boolean        @default(false)
+  server_finish_at DateTime?
+  telemetry        RaceTelemetry?
 
-  // Античит флаги
-  is_disqualified  Boolean @default(false) // Забанен ли в этой гонке
-  suspicion_reason String? // "Teleport", "Speedhack", "No Witnesses"
-
-  telemetry RaceTelemetry[] // История позиций этого игрока
-
-  @@unique([race_id, game_account_id]) // Игрок не может быть дважды в одной гонке
+  @@unique([race_id, game_account_id])
 }
 
-// 👁️ ТАБЛИЦА СВИДЕТЕЛЕЙ (Witness System)
-model RaceWitness {
+model RaceTelemetry {
+  id             Int             @id @default(autoincrement())
+  participant_id Int             @unique
+  participant    RaceParticipant @relation(fields: [participant_id], references: [id], onDelete: Cascade)
+
+  raw_path   Json?
+  speed      Float
+  created_at DateTime @default(now())
+}
+
+model Tokens {
+  id            Int      @id @default(autoincrement())
+  user_id       Int      @unique
+  user          User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  refresh_token String   @unique
+  created_at    DateTime @default(now())
+}
+
+// --- АВТОБАЗАР ---
+
+model CarListing {
+  id         Int         @id @default(autoincrement())
+  seller_id  Int
+  seller     User        @relation(fields: [seller_id], references: [id], onDelete: Cascade)
+  account_id Int
+  account    GameAccount @relation(fields: [account_id], references: [id])
+
+  model_id   Int
+  model_name String
+  price      BigInt
+
+  rarity       CarRarity @default(JUNK)
+  rarity_num   Int
+  plate_number String?
+  mileage      Float     @default(0.0)
+  oil_status   OilStatus @default(GOOD)
+  condition    Int       @default(100)
+  has_launch   Boolean   @default(false)
+  description  String?
+  image_id     String?
+
+  is_negotiable Boolean   @default(false)
+  is_vice_city  Boolean   @default(false)
+  status        CarStatus @default(FOR_SALE)
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+  deal       CarDeal?
+
+  @@index([rarity, rarity_num])
+}
+
+model CarDeal {
+  id         Int        @id @default(autoincrement())
+  listing_id Int        @unique
+  listing    CarListing @relation(fields: [listing_id], references: [id], onDelete: Cascade)
+
+  buyer_id Int
+  buyer    User @relation("BuyerDeals", fields: [buyer_id], references: [id])
+
+  seller_notified_contact Boolean @default(false)
+  buyer_notified_contact  Boolean @default(false)
+  seller_confirmed_deal   Boolean @default(false)
+  buyer_confirmed_deal    Boolean @default(false)
+
+  status           DealStatus @default(PENDING)
+  contact_deadline DateTime
+  deal_deadline    DateTime?
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+}
+
+model Report {
+  id          Int          @id @default(autoincrement())
+  reporter_id Int
+  reporter    User         @relation("Reporter", fields: [reporter_id], references: [id])
+  target_id   Int
+  target      User         @relation("Target", fields: [target_id], references: [id])
+  deal_id     Int?
+  reason      String
+  evidence_id String?
+  status      ReportStatus @default(OPEN)
+  created_at  DateTime     @default(now())
+}
+
+// --- АУКЦИОНЫ ---
+
+model Auction {
+  id      Int           @id @default(autoincrement())
+  title   String        @default("ГРАН-ПРИ [ЛОКАЦИЯ]")
+  status  AuctionStatus @default(CREATED)
+  race_id Int?          @unique
+  race    Race?         @relation(fields: [race_id], references: [id])
+
+  start_at     DateTime
+  end_at       DateTime
+  min_bid_step Int      @default(5)
+
+  slots      AuctionSlot[]
+  bids       AuctionBid[]
+  created_at DateTime      @default(now())
+}
+
+model AuctionSlot {
+  id         Int      @id @default(autoincrement())
+  auction_id Int
+  auction    Auction  @relation(fields: [auction_id], references: [id], onDelete: Cascade)
+  number     Int // 1-16
+  type       SlotType @default(CLOSED)
+
+  winner_id Int?
+  winner    User? @relation(fields: [winner_id], references: [id])
+
+  @@unique([auction_id, number])
+}
+
+model AuctionBid {
+  id          Int      @id @default(autoincrement())
+  auction_id  Int
+  auction     Auction  @relation(fields: [auction_id], references: [id], onDelete: Cascade)
+  user_id     Int
+  user        User     @relation(fields: [user_id], references: [id])
+  is_active   Boolean  @default(true)
+  slot_number Int
+  amount      Int
+  created_at  DateTime @default(now())
+
+  @@index([auction_id, slot_number, amount])
+}
+
+model RaceBet {
   id Int @id @default(autoincrement())
+
+  user_id Int
+  user    User @relation(fields: [user_id], references: [id])
 
   race_id Int
   race    Race @relation(fields: [race_id], references: [id], onDelete: Cascade)
 
-  // Кто видел (Свидетель) — тут лучше оставить по ID, так как мы точно знаем, кто отправляет запрос
-  observer_id Int
-  observer    GameAccount @relation("ObserverRelation", fields: [observer_id], references: [id], onDelete: Cascade)
+  target_acc_id  Int
+  target_account GameAccount @relation(fields: [target_acc_id], references: [id])
 
-  // Кого видели (Подозреваемый)
-  suspect_nickname String
-  suspect_server   Int // Исправлено: Number -> Int
+  amount BigInt
 
-  // Связь по составному уникальному ключу
-  suspect GameAccount @relation("SuspectRelation", fields: [suspect_nickname, suspect_server], references: [nickname, server], onDelete: Cascade)
-
-  server_time DateTime @default(now())
-
-  // Обновленный индекс: ищем по гонке и никнейму подозреваемого
-  @@index([race_id, suspect_nickname, suspect_server])
-}
-
-// 📈 ТАБЛИЦА ТЕЛЕМЕТРИИ (Физика)
-model RaceTelemetry {
-  id Int @id @default(autoincrement())
-
-  participant_id Int
-  participant    RaceParticipant @relation(fields: [participant_id], references: [id], onDelete: Cascade)
-
-  x     Float
-  y     Float
-  z     Float
-  speed Float
-
-  client_timestamp BigInt // Время Lua (os.clock или timestamp)
-  created_at       DateTime @default(now())
-}
-
-model Transactions {
-  id Int @id @default(autoincrement())
-
-  hash    String? @unique
-  user_id Int
-  user    User    @relation(fields: [user_id], references: [id]) // Добавил связь
-
-  amount  BigInt
-  comment String        @unique
-  status  PaymentStatus
-
-  created_at DateTime @default(now()) // Привел к общему стилю snake_case
-  updated_at DateTime @updatedAt
-}
-
-model WithdrawalRequest {
-  id Int @id @default(autoincrement())
-
-  // --- 👤 КТО ВЫВОДИТ ---
-  user_id Int
-  user    User @relation(fields: [user_id], references: [id])
-
-  // --- 💰 ДЕТАЛИ ---
-  amount         Float // Сумма вывода (должна совпадать с типом balance в User)
-  currency       String @default("TON") // Валюта (TON, USDT, RUB и т.д.)
-  wallet_address String // Реквизиты, куда отправляем деньги (адрес кошелька / карта)
-
-  // --- ⚙️ СТАТУС ---
-  status WithdrawalStatus @default(PENDING)
-
-  // --- 👮 МОДЕРАЦИЯ ---
-  rejection_reason String? // Если отклонили, пишем причину (для юзера)
-  admin_comment    String? // Внутренняя заметка админа (не видна юзеру)
-
-  // --- 🔗 ТЕХНИЧЕСКИЕ ДАННЫЕ ---
-  tx_hash      String? // Хэш транзакции в блокчейне (после выплаты)
-  processed_at DateTime? // Дата, когда админ обработал заявку
+  is_win        Boolean?
+  payout_amount BigInt?
 
   created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
-}
 
-model Tokens {
-  id Int @id @default(autoincrement())
-
-  user_id Int  @unique
-  user    User @relation(fields: [user_id], references: [id], onDelete: Cascade)
-
-  refresh_token String @unique
-
-  created_at DateTime @default(now())
+  @@index([race_id, target_acc_id])
 }
