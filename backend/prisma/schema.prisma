@@ -110,12 +110,11 @@ model User {
   token_version Int       @default(0)
 
   // Связи
-  verification_codes VerificationCodes[]
-  game_accounts      GameAccount[]
-  created_races      Race[]              @relation("UserCreatedRaces")
-  won_races          Race[]              @relation("RaceWinner") // Связь через GameAccount обычно, но если напрямую — ок
-  settings           UserSettings?
-  tokens             Tokens[]
+  game_accounts GameAccount[]
+  created_races Race[]        @relation("UserCreatedRaces")
+  won_races     Race[]        @relation("RaceWinner") // Связь через GameAccount обычно, но если напрямую — ок
+  settings      UserSettings?
+  tokens        Tokens[]
 
   car_listings    CarListing[]
   buyer_deals     CarDeal[]    @relation("BuyerDeals")
@@ -125,18 +124,18 @@ model User {
   won_slots    AuctionSlot[]
   auction_bids AuctionBid[]
 
-  race_bets RaceBet[]
+  race_bets         RaceBet[]
+  verificationCodes VerificationCodes?
 }
 
 model VerificationCodes {
-  id         Int                  @id @default(autoincrement())
-  user_id    Int
-  user       User                 @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  code       String
-  type       VerificationCodeType
-  expires_at DateTime
+  id          Int                  @id @default(autoincrement())
+  telegram_id BigInt               @unique
+  code        String               @unique
+  type        VerificationCodeType
+  expires_at  DateTime
 
-  @@index([user_id, code])
+  user User @relation(fields: [telegram_id], references: [telegram_id])
 }
 
 model UserSettings {
