@@ -21,7 +21,7 @@ export const authMiddleware = (req: Request, res: Response, next: NextFunction) 
       return next(ApiError.UnauthorizedError());
     }
 
-    req.user = userData;
+    // req.user = userData;
 
     next();
   } catch (error) {
