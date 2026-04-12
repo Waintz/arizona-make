@@ -4,6 +4,13 @@ import { app } from "../../../app";
 
 describe("V2 Auth System - Integration Flow", () => {
   const TEST_TG_ID = "999888777";
+  const GAME_ACCOUNT = {
+    code: "",
+    gameId: 1337,
+    nickname: "Test",
+    server: 14,
+    level: 122,
+  };
   const BOT_TOKEN = process.env.INTERNAL_BOT_TOKEN || "your_secret_here";
 
   let tempCode: string;
@@ -11,11 +18,21 @@ describe("V2 Auth System - Integration Flow", () => {
   let refreshToken: string;
 
   beforeAll(async () => {
-    await prisma.verificationCodes.deleteMany({
-      where: { telegram_id: BigInt(TEST_TG_ID) },
+    const bigIntId = BigInt(TEST_TG_ID);
+
+    // 1. Сначала удаляем игровые аккаунты, так как они ссылаются на User
+    await prisma.gameAccount.deleteMany({
+      where: { user: { telegram_id: bigIntId } },
     });
+
+    // 2. Удаляем коды верификации
+    await prisma.verificationCodes.deleteMany({
+      where: { telegram_id: bigIntId },
+    });
+
+    // 3. Теперь, когда зависимостей нет, удаляем самого юзера
     await prisma.user.deleteMany({
-      where: { telegram_id: BigInt(TEST_TG_ID) },
+      where: { telegram_id: bigIntId },
     });
   });
 
@@ -45,13 +62,13 @@ describe("V2 Auth System - Integration Flow", () => {
     tempCode = res.body.code;
   });
 
-  // (Обмен кода на токены)
-  it("3. [Auth] Verify Code (Login) - Success", async () => {
+  // (Вход с игрового аккаунта обмен кода на токены)
+  it("3. [Auth] Verify Game Account (Login) - Success", async () => {
     const res = await request(app)
-      .post("/api/v2/auth/verify")
-      .send({ code: tempCode });
+      .post("/api/v2/auth/verify-game")
+      .send({ ...GAME_ACCOUNT, code: tempCode });
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(201);
     expect(res.body).toHaveProperty("accessToken");
     expect(res.body).toHaveProperty("refreshToken");
 
@@ -63,11 +80,10 @@ describe("V2 Auth System - Integration Flow", () => {
   it("4. [User] Get Me - Success", async () => {
     const res = await request(app)
       .get("/api/v2/users/me")
-      .set("authorization", `Bearer ${accessToken}`)
+      .set("authorization", `Bearer ${accessToken}`);
 
     expect(res.status).toBe(200);
-  })
-
+  });
 
   // (Refresh)
   it("5. [Auth] Refresh Tokens - Success", async () => {

@@ -8,6 +8,8 @@ import {
   refreshTokenSchema,
   verifyCodeSchema,
 } from "../schemas/auth.schema";
+import { gameAccountController } from "../controllers/game-account.controller";
+import { verifyGameAccountSchema } from "../schemas/game-account.schema";
 
 const router = Router();
 
@@ -27,6 +29,16 @@ router.post(
  * @desc    Обмен кода на JWT токены (для игры/сайта)
  */
 router.post("/verify", validate(verifyCodeSchema), authController.verifyCode);
+
+/**
+ * @route   POST /api/v2/auth/verify-game
+ * @desc    Обмен кода на JWT токены и отправка данных пользователя для игры
+ */
+router.post(
+  "/verify-game",
+  validate(verifyGameAccountSchema),
+  gameAccountController.verify
+);
 
 /**
  * @route   POST /api/v2/auth/refresh

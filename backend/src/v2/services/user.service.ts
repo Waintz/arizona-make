@@ -1,11 +1,5 @@
 import { prisma } from "../../../database/db";
-import { UserCreateOneZodSchema } from "../generated/zod/schemas/createOneUser.schema";
-import z from "zod"
-
-export interface CreateUserDTO {
-  telegramId: number | string;
-  username?: string;
-}
+import { CreateUserDTO } from "../schemas/user.schema";
 
 export const userService = {
   async register(data: CreateUserDTO) {
