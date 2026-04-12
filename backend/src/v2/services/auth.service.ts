@@ -1,23 +1,17 @@
 import { prisma } from "../../../database/db";
+import { $Enums } from "../generated";
+import { GenerateCodeDTO } from "../schemas/auth.schema";
 import { TokenPayload } from "../types/auth.types";
 import { TokenService } from "./token.service";
-
-export interface GenerateCodeDto {
-  telegramId: number | string;
-}
-
-export interface VerifyCodeDTO {
-  code: string;
-}
 
 const tokenService = new TokenService();
 
 export const authService = {
   /**
-   * 1. ГЕНЕРАЦИЯ КОДА (Вызывает ТГ-бот)
+   * ГЕНЕРАЦИЯ КОДА (Вызывает ТГ-бот)
    * @param telegramId: number | string;
    */
-  async generateCode(data: GenerateCodeDto) {
+  async generateCode(data: GenerateCodeDTO) {
     const tgId = BigInt(data.telegramId);
 
     const characters = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -43,23 +37,23 @@ export const authService = {
   },
 
   /**
-   * 2. ПРОВЕРКА КОДА (Вызывает Луа-скрипт при логине)
+   * ПРОВЕРКА КОДА (Вызывает Луа-скрипт при логине)
    */
-  async verifyCode(code: string) {
+  async verifyCode(
+    code: string,
+    type: $Enums.VerificationCodeType = "GAME_LOGIN"
+  ) {
     const record = await prisma.verificationCodes.findUnique({
       where: {
         code,
+        type,
       },
       include: {
         user: true,
       },
     });
 
-    if (
-      !record ||
-      new Date() > record.expires_at ||
-      record.type !== "GAME_LOGIN"
-    ) {
+    if (!record || new Date() > record.expires_at || record.type !== type) {
       return { verify: false };
     }
 
@@ -74,7 +68,7 @@ export const authService = {
   },
 
   /**
-   * 3. РЕФРЕШ ТОКЕН (Возвращает новые токены)
+   * РЕФРЕШ ТОКЕН (Возвращает новые токены)
    */
   async refresh(refreshToken: string) {
     const userData = tokenService.validateRefreshToken(refreshToken);
@@ -105,7 +99,7 @@ export const authService = {
   },
 
   /**
-   * 5. ВЫЙТИ ИЗ АККАУНТА
+   * ВЫЙТИ ИЗ АККАУНТА
    */
   async logout(refreshToken: string) {
     const userData = tokenService.validateRefreshToken(refreshToken);
@@ -119,7 +113,7 @@ export const authService = {
   },
 
   /**
-   * 5. СБРОС ВСЕХ СЕССИЙ
+   * СБРОС ВСЕХ СЕССИЙ
    * Инвалидирует все выданные ранее токены за счет смены версии
    * Legacy , пока не нужно
    */

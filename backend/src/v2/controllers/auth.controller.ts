@@ -1,21 +1,32 @@
-import { Request, Response } from "express";
+import { NextFunction, Request, Response } from "express";
 import { authService } from "../services/auth.service";
 import { TokenService } from "../services/token.service";
+import {
+  GenerateCodeDTO,
+  LogoutDTO,
+  RefreshTokenDTO,
+  VerifyCodeDTO,
+} from "../schemas/auth.schema";
+import { nextTick } from "node:process";
 
 const tokenService = new TokenService();
 
 export const authController = {
-  async generateCode(req: Request, res: Response) {
+  async generateCode(
+    req: Request<{}, {}, GenerateCodeDTO>,
+    res: Response,
+    next: NextFunction
+  ) {
     try {
       const code = await authService.generateCode(req.body);
 
-      res.status(201).json({code});
+      res.status(201).json({ code });
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      next(error);
     }
   },
 
-  async verifyCode(req: Request, res: Response) {
+  async verifyCode(req: Request<{}, {}, VerifyCodeDTO>, res: Response, next: NextFunction) {
     try {
       const { code } = req.body; // Достаем код из тела запроса
 
@@ -50,12 +61,11 @@ export const authController = {
         },
       });
     } catch (error) {
-      console.error(error);
-      return res.status(500).json({ message: "Ошибка сервера" });
+      next(error)
     }
   },
 
-  async refresh(req: Request, res: Response) {
+  async refresh(req: Request<{}, {}, RefreshTokenDTO>, res: Response, next: NextFunction) {
     try {
       const { refreshToken } = req.body;
 
@@ -77,12 +87,11 @@ export const authController = {
         user: result.user,
       });
     } catch (error) {
-      console.error(error);
-      return res.status(500).json({ message: "Internal server error" });
+      next(error)
     }
   },
 
-  async logout(req: Request, res: Response) {
+  async logout(req: Request<{}, {}, LogoutDTO>, res: Response, next: NextFunction) {
     try {
       const { refreshToken } = req.body;
 
@@ -98,8 +107,7 @@ export const authController = {
         message: "Вы успешно вышли из аккаунта",
       });
     } catch (error) {
-      console.error(error);
-      return res.status(500).json({ message: "Internal server error" });
+      next(error)
     }
   },
 };

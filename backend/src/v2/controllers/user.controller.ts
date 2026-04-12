@@ -1,18 +1,23 @@
-import { Request, Response } from "express";
+import { NextFunction, Request, Response } from "express";
 import { userService } from "../services/user.service";
+import { CreateUserDTO } from "../schemas/user.schema";
 
 export const userController = {
-  async createUser(req: Request, res: Response) {
+  async createUser(
+    req: Request<{}, {}, CreateUserDTO>,
+    res: Response,
+    next: NextFunction
+  ) {
     try {
       const user = await userService.register(req.body);
 
       res.status(201).json(user);
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      next(error);
     }
   },
 
-  async getMe(req: Request, res: Response) {
+  async getMe(req: Request, res: Response, next: NextFunction) {
     try {
       const userData = req.user;
 
@@ -26,7 +31,7 @@ export const userController = {
 
       return res.status(200).json(user);
     } catch (error) {
-      return res.status(500).json({ message: "Ошибка при получении профиля." });
+      next(error);
     }
   },
 };

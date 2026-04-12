@@ -148,9 +148,11 @@ model UserSettings {
 
 model GameAccount {
   id       Int     @id @default(autoincrement())
+  game_id  Int
   nickname String
   server   Int
-  verified Boolean @default(true)
+  level    Int
+  is_main  Boolean @default(false)
 
   user_id Int
   user    User @relation(fields: [user_id], references: [id])
@@ -160,7 +162,8 @@ model GameAccount {
   car_listings   CarListing[]
   won_race_refs  Race[]            @relation("GameAccountWinner")
 
-  @@unique([nickname, server])
+  @@unique([game_id, server])
+  @@index([user_id])
 }
 
 model Location {

@@ -1,5 +1,6 @@
 import { NextFunction, Request, Response } from "express";
 import { TokenService } from "../services/token.service";
+import { logger } from "../utils/logger";
 
 const tokenService = new TokenService();
 
@@ -21,15 +22,14 @@ export const authMiddleware = (
 
     const userData = tokenService.validateAccessToken(accessToken);
     if (!userData) {
-      return res
-        .status(401)
-        .json({ message: "Невалидный или просроченный токен" });
+      logger.warn({ path: req.path }, "Invalid or expired access token");
+      return res.status(401).json({ message: "Невалидный или просроченный токен" });
     }
 
     req.user = userData;
-
     next();
   } catch (error) {
-    return res.status(401).json({ message: "Ошибка авторизации" });
+    logger.error({ err: error }, "Auth middleware internal error");
+    next(error); 
   }
 };
