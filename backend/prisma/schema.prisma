@@ -22,7 +22,7 @@ enum RaceStatus {
   CANCELLED
 }
 
-enum CarStatus {
+enum ListingStatus {
   FOR_SALE
   TRADING
   SOLD
@@ -43,7 +43,6 @@ enum OilStatus {
 
 enum DealStatus {
   PENDING
-  BUYER_CONTACTED
   WAITING_FOR_FINISH
   COMPLETED
   CANCELLED
@@ -77,8 +76,8 @@ enum SlotType {
 }
 
 enum RaceType {
-  FREE // Бесплатная (код в канал)
-  PAID // Платная (код в ЛС победителям аукциона)
+  FREE
+  PAID
 }
 
 enum DisqualificationReason {
@@ -86,6 +85,24 @@ enum DisqualificationReason {
   CHEATING_SUSPECT
   TELEPORT
   SPEEDHACK
+}
+
+enum EntityType {
+  CAR
+  HOUSE
+  BUSINESS
+}
+
+enum EvidenceFileType {
+  PHOTO
+  VIDEO
+  FILE
+}
+
+enum PrizeType {
+  MONEY
+  POINTS
+  CUSTOM
 }
 
 // --- MODELS ---
@@ -97,35 +114,34 @@ model User {
   created_at     DateTime  @default(now())
   vip_expires_at DateTime?
 
-  points        BigInt @default(0)
-  frozen_points BigInt @default(0)
-
+  points         BigInt @default(0)
+  frozen_points  BigInt @default(0)
   balance        BigInt @default(0)
   frozen_balance BigInt @default(0)
-
-  reputation Int @default(100)
+  reputation     Int    @default(100)
 
   banned_until  DateTime?
   ban_reason    String?
   token_version Int       @default(0)
 
   // Связи
-  game_accounts GameAccount[]
-  created_races Race[]        @relation("UserCreatedRaces")
-  won_races     Race[]        @relation("RaceWinner") // Связь через GameAccount обычно, но если напрямую — ок
-  settings      UserSettings?
-  tokens        Tokens[]
+  game_accounts     GameAccount[]
+  created_races     Race[]             @relation("UserCreatedRaces")
+  won_races         Race[]             @relation("RaceWinner")
+  settings          UserSettings?
+  tokens            Tokens[]
+  verificationCodes VerificationCodes?
 
-  car_listings    CarListing[]
-  buyer_deals     CarDeal[]    @relation("BuyerDeals")
-  reports_filed   Report[]     @relation("Reporter")
-  reports_against Report[]     @relation("Target")
+  // Marketplace
+  marketplace_items MarketplaceItem[] @relation("UserListings")
+  buyer_deals       MarketplaceDeal[] @relation("BuyerDeals")
+  reports_filed     Report[]          @relation("Reporter")
+  reports_against   Report[]          @relation("Target")
 
+  // Гонки и аукционы
   won_slots    AuctionSlot[]
   auction_bids AuctionBid[]
-
-  race_bets         RaceBet[]
-  verificationCodes VerificationCodes?
+  race_bets    RaceBet[]
 }
 
 model VerificationCodes {
@@ -139,10 +155,9 @@ model VerificationCodes {
 }
 
 model UserSettings {
-  id      Int  @id @default(autoincrement())
-  user_id Int  @unique
-  user    User @relation(fields: [user_id], references: [id], onDelete: Cascade)
-
+  id         Int      @id @default(autoincrement())
+  user_id    Int      @unique
+  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
   updated_at DateTime @updatedAt
 }
 
@@ -166,6 +181,151 @@ model GameAccount {
   @@index([user_id])
 }
 
+// --- Marketplace V2 ---
+
+model MarketplaceItem {
+  id          Int        @id @default(autoincrement())
+  entity_type EntityType
+
+  is_boosted  Boolean   @default(false)
+  boost_until DateTime? // Время, до которого товар будет в ТОПе
+
+  seller_id Int
+  seller    User @relation("UserListings", fields: [seller_id], references: [id], onDelete: Cascade)
+
+  title       String
+  price       BigInt
+  server      Int
+  description String?
+  status      ListingStatus @default(FOR_SALE)
+
+  // Детализация
+  car_details   CarListing?
+  house_details HouseListing?
+
+  // Сделка
+  deal MarketplaceDeal?
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@index([entity_type, server, price])
+  @@index([is_boosted, boost_until])
+  @@map("marketplace_items")
+}
+
+model CarListing {
+  id      Int             @id @default(autoincrement())
+  item_id Int             @unique
+  item    MarketplaceItem @relation(fields: [item_id], references: [id], onDelete: Cascade)
+
+  account_id Int
+  account    GameAccount @relation(fields: [account_id], references: [id])
+
+  model_id     Int
+  rarity       CarRarity @default(JUNK)
+  rarity_num   Int       @default(0)
+  plate_number String?
+  mileage      Float     @default(0.0)
+  oil_status   OilStatus @default(GOOD)
+  condition    Int       @default(100)
+  has_launch   Boolean   @default(false)
+  image_id     String?
+
+  is_negotiable Boolean @default(false)
+  is_vice_city  Boolean @default(false)
+
+  @@index([rarity, rarity_num])
+  @@map("car_listings_details")
+}
+
+model HouseListing {
+  id      Int             @id @default(autoincrement())
+  item_id Int             @unique
+  item    MarketplaceItem @relation(fields: [item_id], references: [id], onDelete: Cascade)
+
+  house_number Int
+  location     String
+  has_garage   Boolean @default(false)
+
+  @@map("house_listings_details")
+}
+
+model MarketplaceDeal {
+  id      Int             @id @default(autoincrement())
+  item_id Int             @unique
+  item    MarketplaceItem @relation(fields: [item_id], references: [id], onDelete: Cascade)
+
+  buyer_id Int
+  buyer    User @relation("BuyerDeals", fields: [buyer_id], references: [id])
+
+  // --- КОНТАКТ ---
+  // Продавец нажимает "Да, он мне написал"
+  seller_confirmed_contact Boolean @default(false)
+  // Покупатель нажимает "Да, он мне ответил"
+  buyer_confirmed_contact  Boolean @default(false)
+
+  // --- ЗАВЕРШЕНИЕ СДЕЛКИ ---
+  // Продавец нажал "Подтвердить продажу"
+  seller_confirmed_deal Boolean @default(false)
+  // Покупатель нажал "Подтвердить покупку"
+  buyer_confirmed_deal  Boolean @default(false)
+
+  // --- ДОСРОЧНОЕ ЗАКРЫТИЕ  ---
+  // Если оба предложили закрыть без последствий
+  seller_wants_to_close Boolean @default(false)
+  buyer_wants_to_close  Boolean @default(false)
+
+  status DealStatus @default(PENDING)
+
+  // Дедлайны 
+  buyer_contact_deadline DateTime // +1 час с момента создания
+  seller_action_deadline DateTime // +24 часа для продавца (нажать, что покупатель НЕ написал)
+
+  reports Report[]
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@map("marketplace_deals")
+}
+
+model Report {
+  id          Int  @id @default(autoincrement())
+  reporter_id Int
+  reporter    User @relation("Reporter", fields: [reporter_id], references: [id])
+  target_id   Int
+  target      User @relation("Target", fields: [target_id], references: [id])
+
+  deal_id Int?
+  deal    MarketplaceDeal? @relation(fields: [deal_id], references: [id])
+
+  reason String
+  status ReportStatus @default(OPEN)
+
+  evidences ReportEvidence[]
+
+  created_at DateTime @default(now())
+
+  @@map("reports")
+}
+
+model ReportEvidence {
+  id        Int    @id @default(autoincrement())
+  report_id Int
+  report    Report @relation(fields: [report_id], references: [id], onDelete: Cascade)
+
+  tg_file_id String
+
+  file_type EvidenceFileType @default(PHOTO)
+
+  created_at DateTime @default(now())
+
+  @@map("report_evidences")
+}
+
+// --- RACE & OTHERS ---
+
 model Location {
   id        Int    @id @default(autoincrement())
   name      String
@@ -187,23 +347,22 @@ model Race {
   location_id Int
   location    Location @relation(fields: [location_id], references: [id])
 
-  // Кто победил (связь с GameAccount)
   winner_id  Int?
   winner_acc GameAccount? @relation("GameAccountWinner", fields: [winner_id], references: [id], onDelete: SetNull)
 
-  // Кто победил (связь с User для истории)
   winner_user_id Int?
   winner_user    User? @relation("RaceWinner", fields: [winner_user_id], references: [id])
 
-  winner_path Json?
   prize       String
+  prize_type  PrizeType
+
+  winner_path Json?
   start_at    DateTime
 
   creator_id Int?
   creator    User? @relation("UserCreatedRaces", fields: [creator_id], references: [id])
 
-  race_bets RaceBet[]
-
+  race_bets    RaceBet[]
   participants RaceParticipant[]
   auction      Auction?
   created_at   DateTime          @default(now())
@@ -246,76 +405,6 @@ model Tokens {
   created_at    DateTime @default(now())
 }
 
-// --- АВТОБАЗАР ---
-
-model CarListing {
-  id         Int         @id @default(autoincrement())
-  seller_id  Int
-  seller     User        @relation(fields: [seller_id], references: [id], onDelete: Cascade)
-  account_id Int
-  account    GameAccount @relation(fields: [account_id], references: [id])
-
-  model_id   Int
-  model_name String
-  price      BigInt
-
-  rarity       CarRarity @default(JUNK)
-  rarity_num   Int
-  plate_number String?
-  mileage      Float     @default(0.0)
-  oil_status   OilStatus @default(GOOD)
-  condition    Int       @default(100)
-  has_launch   Boolean   @default(false)
-  description  String?
-  image_id     String?
-
-  is_negotiable Boolean   @default(false)
-  is_vice_city  Boolean   @default(false)
-  status        CarStatus @default(FOR_SALE)
-
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
-  deal       CarDeal?
-
-  @@index([rarity, rarity_num])
-}
-
-model CarDeal {
-  id         Int        @id @default(autoincrement())
-  listing_id Int        @unique
-  listing    CarListing @relation(fields: [listing_id], references: [id], onDelete: Cascade)
-
-  buyer_id Int
-  buyer    User @relation("BuyerDeals", fields: [buyer_id], references: [id])
-
-  seller_notified_contact Boolean @default(false)
-  buyer_notified_contact  Boolean @default(false)
-  seller_confirmed_deal   Boolean @default(false)
-  buyer_confirmed_deal    Boolean @default(false)
-
-  status           DealStatus @default(PENDING)
-  contact_deadline DateTime
-  deal_deadline    DateTime?
-
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
-}
-
-model Report {
-  id          Int          @id @default(autoincrement())
-  reporter_id Int
-  reporter    User         @relation("Reporter", fields: [reporter_id], references: [id])
-  target_id   Int
-  target      User         @relation("Target", fields: [target_id], references: [id])
-  deal_id     Int?
-  reason      String
-  evidence_id String?
-  status      ReportStatus @default(OPEN)
-  created_at  DateTime     @default(now())
-}
-
-// --- АУКЦИОНЫ ---
-
 model Auction {
   id      Int           @id @default(autoincrement())
   title   String        @default("ГРАН-ПРИ [ЛОКАЦИЯ]")
@@ -336,7 +425,7 @@ model AuctionSlot {
   id         Int      @id @default(autoincrement())
   auction_id Int
   auction    Auction  @relation(fields: [auction_id], references: [id], onDelete: Cascade)
-  number     Int // 1-16
+  number     Int
   type       SlotType @default(CLOSED)
 
   winner_id Int?
