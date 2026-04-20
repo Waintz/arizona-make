@@ -28,7 +28,7 @@ export const authController = {
 
   async verifyCode(req: Request<{}, {}, VerifyCodeDTO>, res: Response, next: NextFunction) {
     try {
-      const { code } = req.body; // Достаем код из тела запроса
+      const { code } = req.body;
 
       if (!code) {
         return res.status(400).json({ message: "Код обязателен" });

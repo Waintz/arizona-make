@@ -123,8 +123,6 @@ export const authService = {
 
     const userId = Number(userData.sub);
 
-    // 1. Увеличиваем версию токена в БД
-    // Теперь все старые токены (где старая версия) не пройдут проверку в refresh и миддлварах
     await prisma.user.update({
       where: { id: userId },
       data: {
@@ -132,7 +130,6 @@ export const authService = {
       },
     });
 
-    // 2. Чистим все рефреш-токены пользователя из таблицы Tokens
     await prisma.tokens.deleteMany({
       where: { user_id: userId },
     });
