@@ -1,0 +1,98 @@
+import { WebSocketServer, WebSocket } from "ws";
+import { Server } from "http";
+import { TokenService } from "../services/token.service";
+import { RoomManager } from "./room.manager";
+import { IncomingPayload, OutgoingPayload } from "./types/socket.types";
+import { SocketRouter } from "./socket.router";
+import { redis } from "../services/redis.service";
+import { logger } from "../utils/logger";
+
+export interface AuthWebSocket extends WebSocket {
+  user?: any;
+  isAlive?: boolean;
+  currentRoom?: string;
+}
+
+export class SocketGateway {
+  private static tokenService: TokenService = new TokenService();
+
+  public static init(server: Server) {
+    const wss = new WebSocketServer({ server });
+
+    wss.on("connection", async (ws: AuthWebSocket, req) => {
+      ws.isAlive = true;
+
+      const url = new URL(req.url || "", `http://${req.headers.host}`);
+      const token = url.searchParams.get("token");
+
+      try {
+        if (!token) throw new Error("Токен не найден");
+
+        ws.user = this.tokenService.validateAccessToken(token);
+
+        RoomManager.registerClient(ws);
+
+        const activeRooms = await redis.smembers(
+          `user:${ws.user.sub || ws.user.id}:rooms`
+        );
+        if (activeRooms && activeRooms.length > 0) {
+          ws.currentRoom = activeRooms[0];
+          logger.info(
+            { userId: ws.user.sub || ws.user.id, roomId: ws.currentRoom },
+            `♻️ [WS] Юзер ${ws.user.username} автоматически восстановлен в комнате ${ws.currentRoom}`
+          );
+        }
+
+        logger.info(
+          { userId: ws.user.sub || ws.user.id },
+          `✅ [WS] Подключен юзер: ${ws.user.username}`
+        );
+
+      } catch (error) {
+        logger.error(
+          { userId: ws.user?.sub || ws.user?.id },
+          "❌ [WS] Ошибка авторизации. Соединение разорвано."
+        );
+        ws.terminate();
+        return;
+      }
+
+      ws.on("message", (message: string) => {
+        try {
+          const parsed = JSON.parse(message.toString());
+
+          if (!parsed.event) throw new Error("Missing event");
+
+          SocketRouter.handleMessage(ws, parsed as IncomingPayload);
+        } catch (e) {
+          const errorPayload: OutgoingPayload = {
+            event: "error",
+            data: { message: "Неверный формат сообщения" },
+          };
+          ws.send(JSON.stringify(errorPayload));
+        }
+      });
+
+      ws.on("close", async () => {
+        logger.info(
+          { userId: ws.user?.sub || ws.user?.id },
+          `🔌 [WS] Отключен юзер: ${ws.user?.username || "Unknown"}`
+        );
+        RoomManager.unregisterClient(ws);
+      });
+
+      ws.on("pong", () => {
+        ws.isAlive = true;
+      });
+    });
+
+    setInterval(() => {
+      wss.clients.forEach((client: any) => {
+        const ws = client as AuthWebSocket;
+        if (!ws.isAlive) return ws.terminate();
+        ws.isAlive = false;
+        ws.ping();
+      });
+    }, 30000);
+  }
+}

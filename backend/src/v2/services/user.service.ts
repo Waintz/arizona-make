@@ -39,7 +39,6 @@ export const userService = {
     return await prisma.user.findUnique({
       where: { id },
       include: {
-        // Тут потом добавим связь с игровыми аккаунтами
         // GameAccounts: true 
       }
     });

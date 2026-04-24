@@ -15,10 +15,17 @@ datasource db {
 
 // --- ENUMS ---
 
+enum UserRole {
+  USER
+  ADMIN
+  MODERATOR
+}
+
 enum RaceStatus {
   WAITING
   STARTED
   FINISHED
+  CLOSED
   CANCELLED
 }
 
@@ -114,6 +121,8 @@ model User {
   created_at     DateTime  @default(now())
   vip_expires_at DateTime?
 
+  role UserRole @default(USER)
+
   points         BigInt @default(0)
   frozen_points  BigInt @default(0)
   balance        BigInt @default(0)
@@ -139,9 +148,10 @@ model User {
   reports_against   Report[]          @relation("Target")
 
   // Гонки и аукционы
-  won_slots    AuctionSlot[]
-  auction_bids AuctionBid[]
-  race_bets    RaceBet[]
+  won_slots        AuctionSlot[]
+  auction_bids     AuctionBid[]
+  race_bets        RaceBet[]
+  raceParticipants RaceParticipant[]
 }
 
 model VerificationCodes {
@@ -347,14 +357,14 @@ model Race {
   location_id Int
   location    Location @relation(fields: [location_id], references: [id])
 
-  winner_id  Int?
-  winner_acc GameAccount? @relation("GameAccountWinner", fields: [winner_id], references: [id], onDelete: SetNull)
+  winner_acc_id  Int?
+  winner_acc GameAccount? @relation("GameAccountWinner", fields: [winner_acc_id], references: [id], onDelete: SetNull)
 
   winner_user_id Int?
   winner_user    User? @relation("RaceWinner", fields: [winner_user_id], references: [id])
 
-  prize       String
-  prize_type  PrizeType
+  prize      String
+  prize_type PrizeType
 
   winner_path Json?
   start_at    DateTime
@@ -366,6 +376,8 @@ model Race {
   participants RaceParticipant[]
   auction      Auction?
   created_at   DateTime          @default(now())
+
+  @@index([status, start_at])
 }
 
 model RaceParticipant {
@@ -377,14 +389,18 @@ model RaceParticipant {
   disqualified_at DateTime?
   dq_reason       DisqualificationReason?
 
+  user_id Int
+  user    User @relation(fields: [user_id], references: [id])
+
   game_account_id Int
   game_account    GameAccount @relation(fields: [game_account_id], references: [id], onDelete: Cascade)
 
   finished         Boolean        @default(false)
+  position         Int?
   server_finish_at DateTime?
   telemetry        RaceTelemetry?
 
-  @@unique([race_id, game_account_id])
+  @@unique([race_id, user_id])
 }
 
 model RaceTelemetry {

@@ -6,17 +6,15 @@ import { logger } from "./src/v2/utils/logger";
 
 export const app = express();
 
-// Это должно быть ПЕРЕД роутами
 app.use(express.json());
 app.use(helmet());
 
-// Хак для BigInt
 // @ts-ignore
 BigInt.prototype.toJSON = function () {
   return this.toString();
 };
 
-app.use("/api/v2", v2Router); // Убедись, что префикс правильный
+app.use("/api/v2", v2Router);
 
 app.use(errorMiddleware);
 

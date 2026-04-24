@@ -47,6 +47,7 @@ export const authController = {
         tgId: String(result.user.telegram_id),
         username: result.user.username || "",
         version: result.user.token_version,
+        role: result.user.role,
       });
 
       await tokenService.saveToken(result.user.id, tokens.refreshToken);
