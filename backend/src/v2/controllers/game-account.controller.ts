@@ -16,6 +16,7 @@ export const gameAccountController = {
         tgId: String(user.telegram_id),
         username: user.username || "",
         version: user.token_version,
+        role: user.role,
       });
 
       await tokenService.saveToken(user.id, tokens.refreshToken);

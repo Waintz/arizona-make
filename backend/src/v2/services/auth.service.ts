@@ -89,6 +89,7 @@ export const authService = {
       tgId: String(user.telegram_id),
       username: user.username || "",
       version: user.token_version,
+      role: user.role,
     };
 
     const tokens = tokenService.generateTokens(payload);
