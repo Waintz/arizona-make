@@ -1,10 +1,12 @@
 import { prisma } from '../../../database/db';
 import { redis } from './redis.service';
 
+// DEBUG ОБЯЗАТЕЛЬНО ПОМЕНЯТЬ НА 60 МИНУТ
+
 export const startGarbageCollector = () => {
   setInterval(async () => {
     try {
-      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+      const oneHourAgo = new Date(Date.now() - 1 * 60 * 1000);
 
       const zombieRaces = await prisma.race.findMany({
         where: {

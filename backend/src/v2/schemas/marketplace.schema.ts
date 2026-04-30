@@ -71,19 +71,15 @@ export const dealsActionSchema = z.object({
   body: z.discriminatedUnion("type", [
     z.object({
       type: z.literal(DealActionType.CONFIRM_CONTACT),
-      telegramId: z.coerce.bigint(),
     }),
     z.object({
       type: z.literal(DealActionType.CONFIRM_DEAL),
-      telegramId: z.coerce.bigint(),
     }),
     z.object({
       type: z.literal(DealActionType.CANCEL),
-      telegramId: z.coerce.bigint(),
     }),
     z.object({
       type: z.literal(DealActionType.REPORT),
-      telegramId: z.coerce.bigint(),
       report: reportSchema,
     }),
   ]),

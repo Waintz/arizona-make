@@ -11,6 +11,7 @@ import {
 } from "../schemas/marketplace.schema";
 import { marketplaceController } from "../controllers/marketplace.controller";
 import { checkInternalToken } from "../middlewares/checkInternalToken";
+import { hybridAuthMiddleware } from "../middlewares/hybridAuth.middleware";
 
 const router = Router();
 
@@ -24,34 +25,34 @@ router.post(
 router.post(
   "/deals",
   validate(buyItemSchema),
-  authMiddleware,
+  hybridAuthMiddleware,
   marketplaceController.buyItem
 );
 
 router.post(
   "/deals/:id/action",
   validate(dealsActionSchema),
-  checkInternalToken,
+  hybridAuthMiddleware,
   marketplaceController.dealAction
 );
 
 router.get(
   "/feed", 
   validate(getFeedSchema),
-  authMiddleware,
+  hybridAuthMiddleware,
   marketplaceController.getFeed
 );
 
 router.get(
   "/me", 
   validate(getMyItemsSchema),
-  authMiddleware,
+  hybridAuthMiddleware,
   marketplaceController.getMyItems
 );
 
 router.patch(
   "/:id",
-  authMiddleware,
+  hybridAuthMiddleware,
   validate(updateItemSchema),
   marketplaceController.updateItem
 );

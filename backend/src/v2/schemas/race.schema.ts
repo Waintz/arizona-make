@@ -1,9 +1,12 @@
 import z from "zod";
-import { PrizeType } from "../generated";
+import { PrizeType, RaceAccessType, RaceSource } from "../generated";
 
 export const createRaceSchema = z.object({
   body: z.object({
     locationId: z.string().transform(Number),
+    accessType: z.enum(RaceAccessType),
+    source: z.enum(RaceSource),
+    templateId: z.string().transform(str => Number(str)),
     prizeType: z.enum(PrizeType),
     prize: z.string(),
     startAt: z

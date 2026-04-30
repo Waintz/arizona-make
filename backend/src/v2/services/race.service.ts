@@ -1,8 +1,9 @@
 import { prisma } from "../../../database/db";
+import { raceQueue } from "../modules/race/queues/race.queue";
 import { CreateRaceDTO } from "../schemas/race.schema";
-import { raceQueue } from "../sockets/race.queue";
 import { RoomManager } from "../sockets/room.manager";
 import { OutgoingPayload } from "../sockets/types/socket.types";
+import { BettingService } from "./bet.service";
 import { redis } from "./redis.service";
 
 export const raceService = {
@@ -25,54 +26,6 @@ export const raceService = {
         start_at: startAt,
       },
     });
-
-    const startTime = new Date(startAt).getTime();
-    const now = Date.now();
-
-    const delay30s = startTime - 30000 - now;
-    const delay5s = startTime - 5000 - now;
-    const delayStart = startTime - now;
-
-    console.log(
-      `[Service] Создана гонка ${code}. Старт в: ${new Date(
-        startTime
-      ).toLocaleTimeString()}`
-    );
-    console.log(`[Service] Задержка до 30сек: ${delay30s}мс`);
-    console.log(`[Service] Задержка до 5сек:  ${delay5s}мс`);
-    console.log(`[Service] Задержка до GO:    ${delayStart}мс`);
-
-    if (delay30s > 0) {
-      await raceQueue.add(
-        "prep-event",
-        { secretCode: code, eventType: "PREPARING", raceId: race.id },
-        { delay: delay30s }
-      );
-      console.log(`[Queue] Добавлена задача PREPARING`);
-    } else {
-      console.log(`[Queue] ⚠️ Задача PREPARING пропущена (время вышло)`);
-    }
-
-    if (delay5s > 0) {
-      await raceQueue.add(
-        "count-event",
-        { secretCode: code, eventType: "COUNTDOWN", raceId: race.id },
-        { delay: delay5s }
-      );
-      console.log(`[Queue] Добавлена задача COUNTDOWN`);
-    }
-
-    await raceQueue.add(
-      "start-event",
-      {
-        secretCode: code,
-        eventType: "GO",
-        raceId: race.id,
-        startTime: startAt,
-      },
-      { delay: Math.max(0, delayStart) }
-    );
-    console.log(`[Queue] Добавлена задача GO`);
 
     return race;
   },
@@ -262,9 +215,9 @@ export const raceService = {
         });
       });
 
-      console.log(
-        `🏆 Игрок ${userId} занял 1 место! Запускаем таймер 3 минуты для остальных.`
-      );
+      console.log("Должна быть выдача приза, пока не реализовано.")
+
+      await BettingService.distributeWinnings(race.id, participant.game_account_id);
 
       await raceQueue.add(
         "close-race",

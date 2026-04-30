@@ -5,20 +5,21 @@ import { userRouter } from "./user.router";
 import { authRouter } from "./auth.router";
 import { marketplaceRouter } from "./marketplace.router";
 import { raceRouter } from "./race.router";
+import { auctionRouter } from "./auction.router";
 
 
 const router = Router();
 
-if (process.env.NODE_ENV != "production") {
-  const swaggerDocs = generateOpenApiDocs();
+// if (process.env.NODE_ENV != "production") {
+//   const swaggerDocs = generateOpenApiDocs();
 
-  router.get('/docs-json', (req, res) => {
-    res.json(generateOpenApiDocs());
-  });
+//   router.get('/docs-json', (req, res) => {
+//     res.json(generateOpenApiDocs());
+//   });
 
-  router.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs))
+//   router.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs))
   
-}
+// }
 
 router.get("/health", (req, res) => {
   res.status(200).json({
@@ -30,5 +31,6 @@ router.use("/users", userRouter)
 router.use("/auth", authRouter)
 router.use("/marketplace", marketplaceRouter)
 router.use("/races", raceRouter)
+router.use("/auctions", auctionRouter)
 
 export const v2Router = router;

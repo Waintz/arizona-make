@@ -12,7 +12,7 @@ export const userController = {
       const user = await userService.register(req.body);
 
       res.status(201).json(user);
-    } catch (error: any) {
+    } catch (error) {
       next(error);
     }
   },

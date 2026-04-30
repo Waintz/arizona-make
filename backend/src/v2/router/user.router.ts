@@ -4,6 +4,7 @@ import { createUserSchema } from "../schemas/user.schema";
 import { userController } from "../controllers/user.controller";
 import { checkInternalToken } from "../middlewares/checkInternalToken";
 import { authMiddleware } from "../middlewares/auth.middleware";
+import { hybridAuthMiddleware } from "../middlewares/hybridAuth.middleware";
 
 const router = Router();
 
@@ -16,7 +17,7 @@ router.post(
 
 router.get(
   "/me",
-  authMiddleware,
+  hybridAuthMiddleware,
   userController.getMe
 );
 

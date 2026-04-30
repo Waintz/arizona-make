@@ -112,6 +112,17 @@ enum PrizeType {
   CUSTOM
 }
 
+enum RaceAccessType {
+  PUBLIC
+  PRIVATE
+  AUCTION
+}
+
+enum RaceSource {
+  SCHEDULED
+  MANUAL
+}
+
 // --- MODELS ---
 
 model User {
@@ -337,16 +348,17 @@ model ReportEvidence {
 // --- RACE & OTHERS ---
 
 model Location {
-  id        Int    @id @default(autoincrement())
-  name      String
-  file_id   String
-  pos_one_x Float
-  pos_one_y Float
-  pos_one_z Float
-  pos_two_x Float
-  pos_two_y Float
-  pos_two_z Float
-  races     Race[]
+  id            Int            @id @default(autoincrement())
+  name          String
+  file_id       String
+  pos_one_x     Float
+  pos_one_y     Float
+  pos_one_z     Float
+  pos_two_x     Float
+  pos_two_y     Float
+  pos_two_z     Float
+  races         Race[]
+  raceTemplates RaceTemplate[]
 }
 
 model Race {
@@ -354,14 +366,20 @@ model Race {
   secret_code String     @unique
   status      RaceStatus @default(WAITING)
 
+  source      RaceSource    @default(MANUAL)
+  template_id Int?
+  template    RaceTemplate? @relation(fields: [template_id], references: [id])
+
   location_id Int
   location    Location @relation(fields: [location_id], references: [id])
 
-  winner_acc_id  Int?
-  winner_acc GameAccount? @relation("GameAccountWinner", fields: [winner_acc_id], references: [id], onDelete: SetNull)
+  winner_acc_id Int?
+  winner_acc    GameAccount? @relation("GameAccountWinner", fields: [winner_acc_id], references: [id], onDelete: SetNull)
 
   winner_user_id Int?
   winner_user    User? @relation("RaceWinner", fields: [winner_user_id], references: [id])
+
+  access_type RaceAccessType @default(PUBLIC)
 
   prize      String
   prize_type PrizeType
@@ -374,10 +392,32 @@ model Race {
 
   race_bets    RaceBet[]
   participants RaceParticipant[]
-  auction      Auction?
   created_at   DateTime          @default(now())
 
+  @@unique([template_id, start_at])
+  @@index([template_id, start_at])
   @@index([status, start_at])
+}
+
+model RaceTemplate {
+  id Int @id @default(autoincrement())
+
+  day_of_week Int
+  time        String
+
+  is_active Boolean @default(true)
+
+  location_id Int
+  location    Location @relation(fields: [location_id], references: [id])
+
+  prize      String
+  prize_type PrizeType
+
+  access_type RaceAccessType @default(PUBLIC)
+
+  created_at DateTime @default(now())
+
+  races Race[]
 }
 
 model RaceParticipant {
@@ -421,28 +461,39 @@ model Tokens {
   created_at    DateTime @default(now())
 }
 
+enum AuctionTargetType {
+  RACE // Слоты на Гран-При
+  ITEM // Игровой предмет (скин, акс)
+  PROPERTY // Дом или бизнес
+  CUSTOM // Кастомный розыгрыш (например, админ-услуга)
+}
+
 model Auction {
-  id      Int           @id @default(autoincrement())
-  title   String        @default("ГРАН-ПРИ [ЛОКАЦИЯ]")
-  status  AuctionStatus @default(CREATED)
-  race_id Int?          @unique
-  race    Race?         @relation(fields: [race_id], references: [id])
+  id     Int           @id @default(autoincrement())
+  title  String
+  status AuctionStatus @default(CREATED)
 
-  start_at     DateTime
-  end_at       DateTime
-  min_bid_step Int      @default(5)
+  target_type AuctionTargetType
+  target_id   Int?
 
-  slots      AuctionSlot[]
-  bids       AuctionBid[]
-  created_at DateTime      @default(now())
+  start_at DateTime
+  end_at   DateTime
+
+  min_bid_step Int @default(5)
+
+  slots AuctionSlot[]
+  bids  AuctionBid[]
+
+  created_at DateTime @default(now())
 }
 
 model AuctionSlot {
-  id         Int      @id @default(autoincrement())
-  auction_id Int
-  auction    Auction  @relation(fields: [auction_id], references: [id], onDelete: Cascade)
-  number     Int
-  type       SlotType @default(CLOSED)
+  id          Int      @id @default(autoincrement())
+  auction_id  Int
+  auction     Auction  @relation(fields: [auction_id], references: [id], onDelete: Cascade)
+  number      Int
+  type        SlotType @default(CLOSED)
+  current_bid Int      @default(0)
 
   winner_id Int?
   winner    User? @relation(fields: [winner_id], references: [id])

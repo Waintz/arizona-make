@@ -32,8 +32,8 @@ export class RoomManager {
 
     ws.currentRoom = roomId;
     logger.info(
-      { userId, roomId },
-      `[Room] 👤 ${ws.user.username} вошел в комнату: ${roomId}`
+      { userId, roomId, username: ws.user.username },
+      "User joined room",
     );
   }
 
@@ -47,8 +47,8 @@ export class RoomManager {
 
     ws.currentRoom = undefined;
     logger.info(
-      { userId, roomId },
-      `[Room] 🚪 ${ws.user.username} покинул комнату: ${roomId}`
+      { userId, roomId, username: ws.user.username },
+      "User left room",
     );
   }
 
@@ -61,7 +61,7 @@ export class RoomManager {
   public static async broadcast(
     roomId: string,
     payload: OutgoingPayload,
-    excludeWs?: AuthWebSocket
+    excludeWs?: AuthWebSocket,
   ) {
     const userIds = await redis.smembers(`room:${roomId}`);
     if (!userIds || userIds.length === 0) return;

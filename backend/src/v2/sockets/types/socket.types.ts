@@ -1,6 +1,8 @@
 export type IncomingPayload =
   | { event: "room:join"; data: { roomId: string } }
-  | { event: "room:leave"; data?: never };
+  | { event: "room:leave"; data?: never }
+  | { event: "auction:join"; data: { auctionId: number } }
+  | { event: "auction:leave"; data: { auctionId: number } };
 
 export type OutgoingPayload =
   | { event: "race:closed"; data: {} }
@@ -17,4 +19,27 @@ export type OutgoingPayload =
       event: "race:status";
       data: { status: "PREPARING" | "COUNTDOWN" | "GO"; seconds?: number };
       startTime?: string;
+    }
+  | {
+      event: "auction:bid_update";
+      data: {
+        auctionId: number;
+        slot: number;
+        amount?: number;
+        userId: number;
+      };
+    }
+  | {
+      event: "auction:extend";
+      data: {
+        auctionId: number;
+        endAt: string;
+      };
+    }
+  | {
+      event: "auction:finished";
+      data: {
+        auctionId: number;
+        winners: number[];
+      };
     };
