@@ -6,18 +6,29 @@ import {
   JoinRaceDTO,
 } from "../schemas/race.schema";
 import { raceService } from "../services/race.service";
+import { raceOrchestrator } from "../modules/race/race.orchestrator";
 
 export const raceController = {
   async createRace(req: Request, res: Response, next: NextFunction) {
     try {
-      const { locationId, prizeType, prize, startAt } =
-        req.body as unknown as CreateRaceDTO["body"];
+      const {
+        locationId,
+        prizeType,
+        prize,
+        startAt,
+        accessType,
+        source,
+        templateId,
+      } = req.body as unknown as CreateRaceDTO["body"];
 
-      const race = await raceService.createRace({
+      const race = await raceOrchestrator.createRace({
         locationId: Number(locationId),
         prizeType: prizeType,
         prize: prize,
         startAt: new Date(startAt),
+        accessType: accessType,
+        source: source,
+        templateId: templateId,
       });
 
       res.status(201).json(race);
@@ -39,7 +50,7 @@ export const raceController = {
   async restoreRoomsController(
     req: Request,
     res: Response,
-    next: NextFunction
+    next: NextFunction,
   ) {
     try {
       const userId = req.user?.sub;
@@ -130,5 +141,5 @@ export const raceController = {
     } catch (error) {
       next(error);
     }
-  }
+  },
 };

@@ -128,7 +128,7 @@ export class MarketplaceService {
 
   async dealAction(
     dealId: number,
-    telegramId: bigint,
+    userId: number,
     type: DealActionType,
     report?: ReportDTO
   ) {
@@ -140,7 +140,7 @@ export class MarketplaceService {
       if (!deal) throw { status: 404, message: "Сделка не найдена" };
 
       const user = await tx.user.findUnique({
-        where: { telegram_id: telegramId },
+        where: { id: userId },
       });
 
       if (!user) throw { status: 401, message: "Пользователь не найден" };

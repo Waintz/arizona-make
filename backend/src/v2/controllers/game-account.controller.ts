@@ -36,7 +36,7 @@ export const gameAccountController = {
           vip_expires_at: user.vip_expires_at,
         },
       });
-    } catch (error: any) {
+    } catch (error) {
       next(error);
     }
   },

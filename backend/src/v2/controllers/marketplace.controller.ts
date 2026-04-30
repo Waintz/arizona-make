@@ -10,6 +10,7 @@ import {
 } from "../schemas/marketplace.schema";
 import { MarketplaceService } from "../services/marketplace/marketplace.service";
 import { EntityType } from "../generated";
+import { TokenPayload } from "../types/auth.types";
 
 const marketplaceService = new MarketplaceService();
 
@@ -138,11 +139,12 @@ export const marketplaceController = {
   ) {
     try {
       const { id: dealId } = req.params;
+      const { sub } = req.user as TokenPayload;
       const data = req.body;
 
-      const result = await marketplaceService.dealAction(
+      await marketplaceService.dealAction(
         Number(dealId),
-        data.telegramId,
+        Number(sub),
         data.type,
         data.type === DealActionType.REPORT ? data.report : undefined
       );

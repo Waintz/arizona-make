@@ -21,7 +21,7 @@ export const authController = {
       const code = await authService.generateCode(req.body);
 
       res.status(201).json({ code });
-    } catch (error: any) {
+    } catch (error) {
       next(error);
     }
   },

@@ -4,6 +4,7 @@ import { checkInternalToken } from "../middlewares/checkInternalToken";
 import { validate } from "../middlewares/validate";
 import { createRaceSchema, finishRaceSchema, joinRaceSchema } from "../schemas/race.schema";
 import { authMiddleware } from "../middlewares/auth.middleware";
+import { hybridAuthMiddleware } from "../middlewares/hybridAuth.middleware";
 
 const router = Router();
 
@@ -14,7 +15,7 @@ router.post(
   raceController.createRace
 );
 
-router.get("/", authMiddleware, raceController.getActiveRaces);
+router.get("/", hybridAuthMiddleware, raceController.getActiveRaces);
 
 router.post(
   "/join",
@@ -23,13 +24,13 @@ router.post(
   raceController.joinRace
 );
 
-router.get("/restore", authMiddleware, raceController.restoreRoomsController);
+router.get("/restore", hybridAuthMiddleware, raceController.restoreRoomsController);
 
-router.get("/:raceId", authMiddleware, raceController.getRace);
+router.get("/:raceId", hybridAuthMiddleware, raceController.getRace);
 
 router.get(
   "/:raceId/leaderboard",
-  authMiddleware,
+  hybridAuthMiddleware,
   raceController.getLeaderboard
 );
 

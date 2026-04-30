@@ -14,7 +14,7 @@ export interface AuthWebSocket extends WebSocket {
 }
 
 export class SocketGateway {
-  private static tokenService: TokenService = new TokenService();
+  private static tokenService = new TokenService();
 
   public static init(server: Server) {
     const wss = new WebSocketServer({ server });
@@ -26,58 +26,63 @@ export class SocketGateway {
       const token = url.searchParams.get("token");
 
       try {
-        if (!token) throw new Error("Токен не найден");
+        if (!token) throw new Error("No token");
 
         ws.user = this.tokenService.validateAccessToken(token);
 
         RoomManager.registerClient(ws);
 
         const activeRooms = await redis.smembers(
-          `user:${ws.user.sub || ws.user.id}:rooms`
+          `user:${ws.user.sub || ws.user.id}:rooms`,
         );
-        if (activeRooms && activeRooms.length > 0) {
+
+        if (activeRooms?.length) {
           ws.currentRoom = activeRooms[0];
-          logger.info(
-            { userId: ws.user.sub || ws.user.id, roomId: ws.currentRoom },
-            `♻️ [WS] Юзер ${ws.user.username} автоматически восстановлен в комнате ${ws.currentRoom}`
-          );
+
+          for (const room of activeRooms) {
+            await RoomManager.join(room, ws);
+          }
         }
 
         logger.info(
-          { userId: ws.user.sub || ws.user.id },
-          `✅ [WS] Подключен юзер: ${ws.user.username}`
+          {
+            userId: ws.user.sub || ws.user.id,
+            username: ws.user.username,
+          },
+          "WS connection established",
         );
-
-      } catch (error) {
-        logger.error(
-          { userId: ws.user?.sub || ws.user?.id },
-          "❌ [WS] Ошибка авторизации. Соединение разорвано."
-        );
-        ws.terminate();
+      } catch (err) {
+        logger.error("WS auth failed");
+        ws.close();
         return;
       }
 
-      ws.on("message", (message: string) => {
+      ws.on("message", async (message) => {
         try {
           const parsed = JSON.parse(message.toString());
 
-          if (!parsed.event) throw new Error("Missing event");
+          if (!parsed?.event) throw new Error("Invalid payload");
 
-          SocketRouter.handleMessage(ws, parsed as IncomingPayload);
-        } catch (e) {
-          const errorPayload: OutgoingPayload = {
-            event: "error",
-            data: { message: "Неверный формат сообщения" },
-          };
-          ws.send(JSON.stringify(errorPayload));
+          await SocketRouter.handleMessage(ws, parsed as IncomingPayload);
+        } catch {
+          ws.send(
+            JSON.stringify({
+              event: "error",
+              data: { message: "Invalid format" },
+            } as OutgoingPayload),
+          );
         }
       });
 
-      ws.on("close", async () => {
+      ws.on("close", () => {
         logger.info(
-          { userId: ws.user?.sub || ws.user?.id },
-          `🔌 [WS] Отключен юзер: ${ws.user?.username || "Unknown"}`
+          {
+            userId: ws.user?.id,
+            username: ws.user?.username,
+          },
+          "WS connection closed",
         );
+
         RoomManager.unregisterClient(ws);
       });
 
@@ -87,9 +92,11 @@ export class SocketGateway {
     });
 
     setInterval(() => {
-      wss.clients.forEach((client: any) => {
+      wss.clients.forEach((client) => {
         const ws = client as AuthWebSocket;
+
         if (!ws.isAlive) return ws.terminate();
+
         ws.isAlive = false;
         ws.ping();
       });
